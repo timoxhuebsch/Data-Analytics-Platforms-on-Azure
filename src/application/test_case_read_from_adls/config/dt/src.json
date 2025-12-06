@@ -1,0 +1,6 @@
+{
+    "storage_account_name": "sasleepvsscreen",
+    "container_name": "03-gold",
+    "file_path": "gold_demographics_aggregated_by_age_gender.parquet",
+    "storage_account_secret_name": "sasleepvsscreen"
+}

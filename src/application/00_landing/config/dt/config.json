@@ -1,0 +1,23 @@
+{
+  "keyvault_name": "kvdataanalyticsth",
+  "dstn": {
+    "storage_account_name": "sasleepvsscreen",
+    "container_name": "00-landing",
+    "file_path": "" ,
+    "storage_account_secret_name": "sasleepvsscreen"
+  },
+  "sources": [
+    {
+      "name": "user_behavior",                    
+      "url": "https://raw.githubusercontent.com/Mikhthad/Mobile-Device-Usage-and-User-Behavior-Dataset/refs/heads/main/user_behavior_dataset.csv",
+      "file_name": "user_behavior_dataset.csv",
+      "read_options": { "file_type": "csv" }  
+    },
+    {
+      "name": "sleep_data",                  
+      "url": "https://raw.githubusercontent.com/Muhanad-husn/Sleep-Health-and-Lifestyle/refs/heads/main/data.csv",
+      "file_name": "sleep-health-and-lifestyle.csv",
+      "read_options": { "file_type": "csv" }  
+    }
+  ]
+}

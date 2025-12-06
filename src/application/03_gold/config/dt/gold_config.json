@@ -1,0 +1,41 @@
+{
+  "keyvault_name": "kvdataanalyticsth",
+
+  "source": {
+    "storage_account_name": "sasleepvsscreen",
+    "storage_account_secret_name": "sasleepvsscreen",
+    "container_name": "02-silver",
+    "file_path": ""
+  },
+
+  "destination": {
+    "storage_account_name": "sasleepvsscreen",
+    "container_name": "03-gold",
+    "file_path": "",
+    "storage_account_secret_name": "sasleepvsscreen"
+  },
+
+  "join_keys": ["Age", "Gender"],
+
+  "files_to_process": [
+    {
+      "name": "user_behavior",
+      "source_file": "silver_user_behavior_dataset.parquet",
+      "aggregated_target_file": "gold_user_behavior_agg_by_age_gender.parquet"
+    },
+    {
+      "name": "sleep_data",
+      "source_file": "silver_sleep-health-and-lifestyle.parquet",
+      "aggregated_target_file": "gold_sleep_agg_by_age_gender.parquet"
+    }
+  ],
+
+  "gold_merge_target_file": "gold_demographics_aggregated_by_age_gender.parquet",
+
+  "options": {
+    "join_how": "inner",                 
+    "numeric_agg": ["mean", "median", "min", "max", "std"],   
+    "min_count_for_merge": 1,
+    "numeric_columns": ["App_Usage_Time","Screen_On_Time","Battery_Drain","Number_of_Apps_Installed", "Data_Usage", "User_Behavior_Class", "Sleep Duration", "Quality of Sleep", "Physical Activity Level", "Stress Level", "Heart Rate", "Daily Steps"]          
+  }
+}
