@@ -75,6 +75,16 @@ def sanitize_keys(df: DataFrame, join_keys: List[str]) -> DataFrame:
 
     return df
 
+def normalize_column_names_df(df: DataFrame) -> DataFrame:
+    """Replace spaces with underscores and trim column names."""
+    df = df.rename(columns=lambda x: x.strip().replace(" ", "_"))
+    return df
+
+def normalize_config_columns(cols: Optional[List[str]]) -> Optional[List[str]]:
+    if cols is None:
+        return None
+    return [c.strip().replace(" ", "_") for c in cols]
+
 def aggregate_by_group(df: DataFrame, join_keys: List[str], numeric_aggs: List[str]=["mean"],
                        config_numeric_columns: Optional[List[str]] = None) -> DataFrame:
     """
@@ -88,6 +98,14 @@ def aggregate_by_group(df: DataFrame, join_keys: List[str], numeric_aggs: List[s
         num_cols = [c for c in config_numeric_columns if c in df.columns and c not in join_keys and not str(c).startswith("_")]
     else:
         num_cols = [c for c in df.select_dtypes(include=[np.number]).columns if c not in join_keys and not str(c).startswith("_")]
+
+    if config_numeric_columns and not num_cols:
+            fallback_cols = [c for c in df.select_dtypes(include=[np.number]).columns if c not in join_keys and not str(c).startswith("_")]
+            if fallback_cols:
+                LOG.warning("Configured numeric_columns did not match any df columns. Falling back to detected numeric columns: %s", fallback_cols)
+                num_cols = fallback_cols
+            else:
+                LOG.warning("No numeric columns found (neither in config nor by dtype). Aggregation will only contain group_count.")
 
     if not num_cols:
         LOG.warning("No numeric columns found to aggregate for grouping %s", join_keys)
@@ -156,11 +174,13 @@ def main():
     aggregated_frames = []
     for file_cfg in files:
         df = read_source_file(file_cfg, config["source"], storage_secret)
+        df = normalize_column_names_df(df)
         df = sanitize_keys(df, join_keys)
         # optional: drop rows where Age or Gender is NaN before aggregating (config could control)
         df = df.dropna(subset=join_keys, how="any")
         numeric_aggs = config.get("options", {}).get("numeric_agg", ["mean"])
         config_numeric_cols = config.get("options", {}).get("numeric_columns", None)
+        config_numeric_cols = normalize_config_columns(config_numeric_cols)
         agg_df = aggregate_by_group(df, join_keys, numeric_aggs, config_numeric_columns=config_numeric_cols)
         # write per-source aggregated file (optional)
         out_agg_target = file_cfg.get("aggregated_target_file")

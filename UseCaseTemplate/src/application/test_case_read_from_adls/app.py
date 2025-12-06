@@ -51,6 +51,7 @@ df = read_parquet_pandas_df(
             file_path = src_config.get('file_path'),
             )
 df.to_csv("preview.csv", index=False)
+print("File preview.csv successfully downloaded")
 #print(df.head(5))
 
 
