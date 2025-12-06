@@ -93,6 +93,16 @@ def add_source_column(dfs: List[DataFrame], files_cfg: List[Dict[str, Any]]) -> 
 
 # ---------------- Silver-specific transformations ----------------
 
+def normalize_column_names(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Wandelt alle Spaltennamen in einheitliches Format:
+    - Leerzeichen durch Unterstrich ersetzen
+    - Alle Buchstaben bleiben unverändert (oder optional lowercase)
+    - Entfernt evtl. führende/trailing Whitespaces
+    """
+    df = df.rename(columns=lambda x: x.strip().replace(" ", "_"))
+    return df
+
 def _trim_string_columns(df: DataFrame) -> None:
     str_cols = df.select_dtypes(include=["object", "string"]).columns
     for c in str_cols:
@@ -153,40 +163,40 @@ def deduplicate_df_by_row_hash(df: DataFrame) -> DataFrame:
 
 def apply_primary_key_rules(df: DataFrame, primary_keys: List[str]) -> DataFrame:
     """
-    1) Remove rows where any primary key is null
-    2) Deduplicate by primary_keys (keep first)
-    Returns the cleaned dataframe (may be a new object).
+    1) Remove rows where any existing primary key is null
+    2) Deduplicate by existing primary_keys (keep first)
+    If none of the configured primary_keys exist in df, function returns df unchanged (no drop).
     """
     if not primary_keys:
         return df
 
-    # Ensure keys exist as columns
-    missing_cols = [k for k in primary_keys if k not in df.columns]
-    if missing_cols:
-        log.warning("Primary key columns missing: %s. These will be treated as missing.", missing_cols)
+    # determine which of the configured keys actually exist in the dataframe
+    existing_keys = [k for k in primary_keys if k in df.columns]
+    missing_keys = [k for k in primary_keys if k not in df.columns]
+    if missing_keys:
+        log.warning("Primary key columns not found in DataFrame and will be ignored: %s", missing_keys)
 
-    # Count null-key rows
+    # if no configured primary keys exist in this df, skip primary key rules
+    if not existing_keys:
+        log.info("No primary key columns present in DataFrame; skipping primary-key based cleaning.")
+        return df
+
+    # Count and drop rows that have NULL in any of the existing primary keys
     null_mask = pd.Series(False, index=df.index)
-    for k in primary_keys:
-        if k in df.columns:
-            null_mask = null_mask | df[k].isna()
-        else:
-            # if key not in df, treat as all null
-            null_mask = null_mask | True
+    for k in existing_keys:
+        null_mask = null_mask | df[k].isna()
 
     null_count = int(null_mask.sum())
     if null_count > 0:
-        log.info("Dropping %d rows with NULL in primary keys %s", null_count, primary_keys)
+        log.info("Dropping %d rows with NULL in primary keys %s", null_count, existing_keys)
         df = df.loc[~null_mask].copy()
 
-    # Deduplicate by primary keys (if at least one exists)
-    existing_keys = [k for k in primary_keys if k in df.columns]
-    if existing_keys:
-        before = len(df)
-        df = df.drop_duplicates(subset=existing_keys)
-        dropped = before - len(df)
-        if dropped > 0:
-            log.info("Dropped %d duplicate rows based on primary keys %s", dropped, existing_keys)
+    # Deduplicate by the existing primary keys
+    before = len(df)
+    df = df.drop_duplicates(subset=existing_keys)
+    dropped = before - len(df)
+    if dropped > 0:
+        log.info("Dropped %d duplicate rows based on primary keys %s", dropped, existing_keys)
 
     return df
 
@@ -284,6 +294,11 @@ def main() -> None:
         raise ValueError("keyvault_name missing in config")
 
     files_to_process = config.get("files_to_process", [])
+
+    for file_cfg in files_to_process:
+        if "primary_keys" in file_cfg and isinstance(file_cfg["primary_keys"], list):
+            file_cfg["primary_keys"] = [k.strip().replace(" ", "_") for k in file_cfg["primary_keys"]]
+
     if not files_to_process:
         log.warning("No files_to_process found in config, exiting.")
         return
@@ -298,6 +313,7 @@ def main() -> None:
     dataframes = read_all_sources(files_to_process, config["source"], storage_secret)
 
     # 2) Add provenance
+    dataframes = [normalize_column_names(df) for df in dataframes]
     add_ingestion_time_to_dfs(dataframes, tz_name="Europe/Berlin")
     add_source_column(dataframes, files_to_process)
 
